@@ -35,15 +35,31 @@ internal static class Program
             {
                 case "-Path":
                 case "--path":
-                    if (i + 1 < args.Length) { path = args[++i]; }
+                    if (i + 1 < args.Length)
+                    {
+                        path = args[++i];
+                    }
+                    else
+                    {
+                        FailFast($"Option '{args[i]}' requires a value.");
+                    }
                     break;
                 case "-ExcludeDirectories":
                 case "--exclude":
+                {
+                    string option = args[i];
+                    bool consumed = false;
                     while (i + 1 < args.Length && !args[i + 1].StartsWith('-'))
                     {
                         excludeDirs.Add(args[++i]);
+                        consumed = true;
+                    }
+                    if (!consumed)
+                    {
+                        FailFast($"Option '{option}' requires at least one value.");
                     }
                     break;
+                }
                 case "-h":
                 case "--help":
                     PrintHelp();
@@ -63,15 +79,28 @@ internal static class Program
 
         var results = new List<(string File, int Sloc)>();
 
-        foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+        var options = new EnumerationOptions
+        {
+            IgnoreInaccessible = true,
+            RecurseSubdirectories = true,
+        };
+
+        foreach (string file in Directory.EnumerateFiles(path, "*", options))
         {
             string ext = Path.GetExtension(file);
             if (!Extensions.Contains(ext)) { continue; }
 
             if (IsExcluded(file, excludeDirs)) { continue; }
 
-            int sloc = CountSloc(file);
-            results.Add((file, sloc));
+            try
+            {
+                results.Add((file, CountSloc(file)));
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException
+                                       or IOException)
+            {
+                Console.Error.WriteLine($"Warning: skipping '{file}': {ex.Message}");
+            }
         }
 
         foreach (var r in results.OrderByDescending(r => r.Sloc))
@@ -86,11 +115,22 @@ internal static class Program
         return 0;
     }
 
+    /// <summary>Prints an error message and a usage hint, then exits with a non-zero code.</summary>
+    private static void FailFast(string message)
+    {
+        Console.Error.WriteLine($"Error: {message}");
+        Console.Error.WriteLine("Run with --help for usage.");
+        Environment.Exit(1);
+    }
+
     private static bool IsExcluded(string fullPath, HashSet<string> excludeDirs)
     {
         if (excludeDirs.Count == 0) { return false; }
 
-        foreach (string segment in fullPath.Split('\\', '/'))
+        string? dir = Path.GetDirectoryName(fullPath);
+        if (string.IsNullOrEmpty(dir)) { return false; }
+
+        foreach (string segment in dir.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
         {
             if (excludeDirs.Contains(segment)) { return true; }
         }

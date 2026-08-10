@@ -82,7 +82,7 @@ function Get-SLOC {
         Where-Object {
             $extSet.Contains($_.Extension) -and
             -not (
-                $_.FullName -split '[\\/]' |
+                (Split-Path -Path $_.FullName -Parent) -split '[\\/]' |
                     Where-Object { $excludeSet.Contains($_) }
             )
         }
