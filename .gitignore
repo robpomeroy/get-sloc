@@ -1,0 +1,49 @@
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# .NET / NuGet
+*.user
+*.suo
+*.userprefs
+*.nupkg
+*.snupkg
+*.nuspec
+packages/
+*.nupkg.metadata
+*.cache
+*.pdb
+*.dll
+*.exe
+*.exe.config
+*.dll.config
+*.pdb
+*.lastbuildstate
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Publish output
+publish/
+*.pubxml
+*.publishproj
+
+# Rider / VS Code
+.idea/
+.vs/
+.vscode/
+*.swp
+*~
+.DS_Store
+
+# PowerShell script runtime artefacts
+*.creds
