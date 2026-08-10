@@ -96,7 +96,7 @@ the project to a clean state. These folders are regenerated on the next
 
 | Option | Description |
 | --- | --- |
-| `-Path <dir>` | Directory to scan (default: current directory). |
+| `-Path <path>` | File or directory to scan (default: current directory). A single file is counted directly; a directory is scanned recursively. |
 | `-ExcludeDirectories <dir> [<dir> ...]` | Directory names to skip (case-insensitive). |
 | `-h`, `--help` | Show help. |
 

@@ -65,18 +65,41 @@ internal static class Program
                     PrintHelp();
                     return 0;
                 default:
-                    // Treat a bare, non-flag argument as the path.
-                    if (!args[i].StartsWith('-')) { path = args[i]; }
+                    // Unknown flag starting with '-' -> likely a typo. Fail
+                    // fast rather than silently ignoring it (which could scan
+                    // the wrong path). A bare, non-flag argument is the path.
+                    if (args[i].StartsWith('-'))
+                    {
+                        FailFast($"Unknown option '{args[i]}'.");
+                    }
+                    else
+                    {
+                        path = args[i];
+                    }
                     break;
             }
         }
 
-        if (!Directory.Exists(path))
+        if (Directory.Exists(path))
+        {
+            CountDirectory(path, excludeDirs);
+        }
+        else if (File.Exists(path))
+        {
+            CountSingleFile(path, excludeDirs);
+        }
+        else
         {
             Console.Error.WriteLine($"Path not found: {path}");
             return 1;
         }
 
+        return 0;
+    }
+
+    /// <summary>Counts SLOC for every supported file under a directory tree.</summary>
+    private static void CountDirectory(string path, HashSet<string> excludeDirs)
+    {
         var results = new List<(string File, int Sloc)>();
 
         var options = new EnumerationOptions
@@ -92,17 +115,51 @@ internal static class Program
 
             if (IsExcluded(file, excludeDirs)) { continue; }
 
-            try
+            if (TryCountSloc(file, out int sloc))
             {
-                results.Add((file, CountSloc(file)));
-            }
-            catch (Exception ex) when (ex is UnauthorizedAccessException
-                                       or IOException)
-            {
-                Console.Error.WriteLine($"Warning: skipping '{file}': {ex.Message}");
+                results.Add((file, sloc));
             }
         }
 
+        PrintResults(results);
+    }
+
+    /// <summary>Counts SLOC for a single explicitly-specified file.</summary>
+    private static void CountSingleFile(string file, HashSet<string> excludeDirs)
+    {
+        if (!Extensions.Contains(Path.GetExtension(file)))
+        {
+            Console.Error.WriteLine($"Warning: '{file}' is not a .ps1/.psm1/.psd1 file; nothing to count.");
+            return;
+        }
+
+        if (IsExcluded(file, excludeDirs)) { return; }
+
+        if (TryCountSloc(file, out int sloc))
+        {
+            PrintResults(new[] { (file, sloc) });
+        }
+    }
+
+    /// <summary>Try to count a single file, warning and returning false on failure.</summary>
+    private static bool TryCountSloc(string file, out int sloc)
+    {
+        try
+        {
+            sloc = CountSloc(file);
+            return true;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException
+                                   or IOException)
+        {
+            Console.Error.WriteLine($"Warning: skipping '{file}': {ex.Message}");
+            sloc = 0;
+            return false;
+        }
+    }
+
+    private static void PrintResults(IEnumerable<(string File, int Sloc)> results)
+    {
         foreach (var r in results.OrderByDescending(r => r.Sloc))
         {
             Console.WriteLine($"{r.Sloc,8}  {r.File}");
@@ -111,8 +168,6 @@ internal static class Program
         int total = results.Sum(r => r.Sloc);
         Console.WriteLine();
         Console.WriteLine($"Total SLOC: {total}");
-
-        return 0;
     }
 
     /// <summary>Prints an error message and a usage hint, then exits with a non-zero code.</summary>
@@ -173,15 +228,17 @@ internal static class Program
             Get-SLOC - counts source lines of code in PowerShell files.
 
             Usage:
-              Get-SLOC [Path] [-Path <dir>] [-ExcludeDirectories <dir> [<dir> ...]]
+              Get-SLOC [Path] [-Path <path>] [-ExcludeDirectories <dir> [<dir> ...]]
 
             Options:
-              -Path <dir>                 Directory to scan (default: current directory).
+              -Path <path>                File or directory to scan (default: current directory).
               -ExcludeDirectories <dirs>  Directory names to skip (case-insensitive).
               -h, --help                  Show this help.
 
             Counts .ps1/.psm1/.psd1 files. A line counts as SLOC if it is
-            non-blank and spanned by a non-comment token.
+            non-blank and spanned by a non-comment token. Passing a single
+            file counts just that file; passing a directory scans it
+            recursively.
             """);
     }
 }
