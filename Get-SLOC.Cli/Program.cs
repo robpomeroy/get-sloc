@@ -49,10 +49,11 @@ internal static class Program
                 {
                     string option = args[i];
                     bool consumed = false;
-                    // Stop only on a known option, not on any '-' prefix, so
-                    // directory names that legitimately begin with '-' (valid
-                    // on Unix/macOS) are still consumed as values.
-                    while (i + 1 < args.Length && !IsKnownOption(args[i + 1]))
+                    // Stop on any '-' prefixed token (standard CLI behavior),
+                    // so typos like '-Pth' are not silently consumed as
+                    // directory names. Leading-dash directory names can still
+                    // be passed via a non-dash-prefixed path such as './-dir'.
+                    while (i + 1 < args.Length && !args[i + 1].StartsWith('-'))
                     {
                         excludeDirs.Add(args[++i]);
                         consumed = true;
@@ -193,14 +194,6 @@ internal static class Program
         Console.Error.WriteLine($"Error: {message}");
         Console.Error.WriteLine("Run with --help for usage.");
         Environment.Exit(1);
-    }
-
-    /// <summary>Returns true if the argument is a recognized option flag.</summary>
-    private static bool IsKnownOption(string arg)
-    {
-        return arg is "-Path" or "--path"
-            or "-ExcludeDirectories" or "--exclude"
-            or "-h" or "--help";
     }
 
     private static bool IsExcluded(string fullPath, HashSet<string> excludeDirs)

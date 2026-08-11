@@ -36,9 +36,10 @@
 
 .OUTPUTS
     System.Management.Automation.PSCustomObject
-        One object per file with File (full path) and SLOC (line count).
-        The results are sorted by SLOC descending and displayed as a table,
-        followed by a total line.
+        One object per file with File (full path) and SLOC (line count),
+        sorted by SLOC descending. The total is written to the host via
+        Write-Host, so the returned objects can be piped or captured
+        (e.g. $r = Get-SLOC) without formatting noise.
 
 .NOTES
     Requires Windows PowerShell 5.1 or later.
@@ -137,9 +138,13 @@ function Get-SLOC {
         }
     }
 
-    $results | Sort-Object SLOC -Descending | Format-Table -AutoSize
+    # Return the sorted objects so callers can format/pipeline them as they
+    # wish. The total is written to the host so it doesn't pollute the output
+    # stream (which would otherwise make $r = Get-SLOC unusable).
+    $sorted = $results | Sort-Object SLOC -Descending
+    $sorted
 
-    "`nTotal SLOC: $((($results | Measure-Object SLOC -Sum).Sum))"
+    Write-Host "`nTotal SLOC: $(($sorted | Measure-Object SLOC -Sum).Sum)"
 }
 
 Get-SLOC -Path $Path -ExcludeDirectories $ExcludeDirectories
