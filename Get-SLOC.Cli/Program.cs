@@ -49,7 +49,10 @@ internal static class Program
                 {
                     string option = args[i];
                     bool consumed = false;
-                    while (i + 1 < args.Length && !args[i + 1].StartsWith('-'))
+                    // Stop only on a known option, not on any '-' prefix, so
+                    // directory names that legitimately begin with '-' (valid
+                    // on Unix/macOS) are still consumed as values.
+                    while (i + 1 < args.Length && !IsKnownOption(args[i + 1]))
                     {
                         excludeDirs.Add(args[++i]);
                         consumed = true;
@@ -108,17 +111,31 @@ internal static class Program
             RecurseSubdirectories = true,
         };
 
-        foreach (string file in Directory.EnumerateFiles(path, "*", options))
+        // EnumerateFiles is lazy, so exceptions (e.g. UnauthorizedAccessException,
+        // IOException, DirectoryNotFoundException) can surface during iteration
+        // even with IgnoreInaccessible. Guard the whole enumeration so a single
+        // inaccessible subtree warns and returns partial results instead of
+        // terminating with an unhandled exception.
+        try
         {
-            string ext = Path.GetExtension(file);
-            if (!Extensions.Contains(ext)) { continue; }
-
-            if (IsExcluded(file, excludeDirs)) { continue; }
-
-            if (TryCountSloc(file, out int sloc))
+            foreach (string file in Directory.EnumerateFiles(path, "*", options))
             {
-                results.Add((file, sloc));
+                string ext = Path.GetExtension(file);
+                if (!Extensions.Contains(ext)) { continue; }
+
+                if (IsExcluded(file, excludeDirs)) { continue; }
+
+                if (TryCountSloc(file, out int sloc))
+                {
+                    results.Add((file, sloc));
+                }
             }
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException
+                                   or IOException
+                                   or DirectoryNotFoundException)
+        {
+            Console.Error.WriteLine($"Warning: enumeration of '{path}' failed partway: {ex.Message}");
         }
 
         PrintResults(results);
@@ -176,6 +193,14 @@ internal static class Program
         Console.Error.WriteLine($"Error: {message}");
         Console.Error.WriteLine("Run with --help for usage.");
         Environment.Exit(1);
+    }
+
+    /// <summary>Returns true if the argument is a recognized option flag.</summary>
+    private static bool IsKnownOption(string arg)
+    {
+        return arg is "-Path" or "--path"
+            or "-ExcludeDirectories" or "--exclude"
+            or "-h" or "--help";
     }
 
     private static bool IsExcluded(string fullPath, HashSet<string> excludeDirs)
