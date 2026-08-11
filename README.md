@@ -1,5 +1,7 @@
 # Get-SLOC
 
+![Get SLOC hero image](images/Get-SLOC.jpg)
+
 Recursively counts source lines of code (SLOC) in PowerShell files (`.ps1`,
 `.psm1`, `.psd1`).
 
